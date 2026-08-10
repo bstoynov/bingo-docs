@@ -115,7 +115,40 @@ Production room 65, observed:
   └─ cards on sale for round 1              └─ no more rounds   └─ room shuts
 ```
 
-Two things this shows that are easy to get wrong:
+### The four timestamps
+
+Read from code, `Room.cs` and `RoomDto.cs`:
+
+| Field | Domain property | Meaning | Backend enforces it? |
+|---|---|---|---|
+| `openTime` | `Room.OpensAt` | room accepts players; cards for round 1 go on sale | **yes** — `Room.IsOpen()` |
+| `sessionStartsAt` | `Room.SessionStartsAt` | first round of the programme starts calling | no |
+| `sessionEndsAt` | `Room.SessionEndsAt` | last round has finished; none left tonight | no |
+| `closeTime` | `Room.ClosesAt` | room stops accepting players | **yes** — `Room.IsOpen()` |
+
+**Only the outer pair gates anything server-side.** `Room.IsOpen()` compares `OpensAt` and
+`ClosesAt` and nothing else, and `JoinRoundRequestHandler` rejects with `RoomNotOpen` when
+it fails. So a join at 02:15 — past `sessionEndsAt`, inside `closeTime` — is *accepted*;
+you simply get `currentRound: null` because no rounds remain (see §5).
+
+**The session pair is informational.** Across the backend `SessionStartsAt` /
+`SessionEndsAt` are only ever read to be copied into responses
+(`GetLobby/LobbyMappers.cs`, `Mappers/BingoManagementMappingExtensions.cs`) — nothing
+gates on them, and nothing in the repo writes them either. They are a persisted column
+(`session_starts_at`) populated outside this repository, which is open question 2 below.
+
+That split shows up in the declarations: `OpenTime` / `CloseTime` are `{ get; init; }`
+while `SessionStartsAt` / `SessionEndsAt` are `{ get; set; }` (`RoomDto.cs`) — the session
+pair is patched on post-construction, and only by the lobby mapper. That is why the two
+appear in `GET /rooms` but are absent from the 5-field room in a join response (§5).
+
+**Our client is stricter than the backend.** `useBingoRoomAvailability` gates purely on
+`sessionEndsAt`, so between 01:58 and 02:30 the room is genuinely joinable while the mini
+bingo widget already shows "Back Soon". That is deliberate client policy — there is
+nothing to play — not a backend rule. `closeTime` is parsed by the client and read by no
+status logic at all.
+
+Two things the timeline shows that are easy to get wrong:
 
 - **The room opens long before play starts** — 55 minutes here. Cards for the first
   round are on sale that whole time.

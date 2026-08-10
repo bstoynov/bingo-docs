@@ -117,14 +117,28 @@ Production room 65, observed:
 
 ### The four timestamps
 
-Read from code, `Room.cs` and `RoomDto.cs`:
+Read from code, `Room.cs` and `RoomDto.cs`. Taking the room 65 numbers above field by
+field:
 
-| Field | Domain property | Meaning | Backend enforces it? |
-|---|---|---|---|
-| `openTime` | `Room.OpensAt` | room accepts players; cards for round 1 go on sale | **yes** — `Room.IsOpen()` |
-| `sessionStartsAt` | `Room.SessionStartsAt` | first round of the programme starts calling | no |
-| `sessionEndsAt` | `Room.SessionEndsAt` | last round has finished; none left tonight | no |
-| `closeTime` | `Room.ClosesAt` | room stops accepting players | **yes** — `Room.IsOpen()` |
+- **`openTime` — 00:05.** The room accepts players. From `Room.OpensAt`
+  (`Room.cs:11`). This is the earliest you can join and buy cards for the first round;
+  nothing is being called yet. 55 minutes of card sales here.
+- **`closeTime` — 02:30.** The room stops accepting players. From `Room.ClosesAt`
+  (`Room.cs:12`). The 32-minute tail after the last round is for collecting winnings.
+- **`sessionStartsAt` — 01:00.** The first round of tonight's programme starts calling.
+  This is the session window denormalised onto the room (`Room.SessionStartsAt`,
+  `Room.cs:13`).
+- **`sessionEndsAt` — 01:58.** The last round finishes. No more rounds tonight, even
+  though the room stays open another 32 minutes.
+
+At a glance, with the part that decides behaviour:
+
+| Field | Domain property | Backend enforces it? |
+|---|---|---|
+| `openTime` | `Room.OpensAt` | **yes** — `Room.IsOpen()` |
+| `sessionStartsAt` | `Room.SessionStartsAt` | no |
+| `sessionEndsAt` | `Room.SessionEndsAt` | no |
+| `closeTime` | `Room.ClosesAt` | **yes** — `Room.IsOpen()` |
 
 **Only the outer pair gates anything server-side.** `Room.IsOpen()` compares `OpensAt` and
 `ClosesAt` and nothing else, and `JoinRoundRequestHandler` rejects with `RoomNotOpen` when
